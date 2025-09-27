@@ -1,33 +1,56 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { View, Text, Image } from "react-native";
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
+export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        headerTitleAlign: "center",
+        tabBarActiveTintColor: "#007AFF",
+        tabBarInactiveTintColor: "#8E8E93",
+      }}
+    >
       <Tabs.Screen
-        name="index"
+        name="checkin"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Check In",
+          headerTitle: () => (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Image
+                source={require("../../assets/images/icon.png")}
+                style={{ width: 30, height: 30, marginRight: 8 }}
+                resizeMode="contain"
+              />
+              <Text style={{ fontSize: 18, fontWeight: "bold" }}>
+                Visitor's Check In
+              </Text>
+            </View>
+          ),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="log-in" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="checkout"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Check Out",
+          headerTitle: () => (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Image
+                source={require("../../assets/images/icon.png")}
+                style={{ width: 30, height: 30, marginRight: 8 }}
+                resizeMode="contain"
+              />
+              <Text style={{ fontSize: 18, fontWeight: "bold" }}>
+                Visitor's Check Out
+              </Text>
+            </View>
+          ),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="log-out" size={size} color={color} />
+          ),
         }}
       />
     </Tabs>
