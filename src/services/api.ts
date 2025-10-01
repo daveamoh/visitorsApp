@@ -62,6 +62,11 @@ export const visitorApi = {
     return api.get('/active');
   },
 
+  // Get All Visit Not Checked Out
+  getAllVisitNotCheckedOut: () => {
+    return api.get('/opened');
+  },
+
   // Check in a visitor
   checkInVisitor: (visitorData: any) => {
     return api.post('/check-in', visitorData);
@@ -69,7 +74,7 @@ export const visitorApi = {
 
   // Check out a visitor
   checkOutVisitor: (visitId: string) => {
-    return api.post(`/check-out/${visitId}`);
+    return api.put(`/checkout/${visitId}`);
   },
 
   // Get visit history

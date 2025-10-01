@@ -1,6 +1,16 @@
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  FlatList,
+  useWindowDimensions,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSnackbar } from '../../src/contexts/SnackbarContext';
+import { visitorApi } from '../../src/services/api';
 
 interface Visit {
   id: string;
@@ -10,142 +20,181 @@ interface Visit {
   visiteeNumber: string;
   purpose: string;
   checkInTime: string;
-  checkOutTime: string | null;
+  company: string;
+  department: string;
+  isCheckingOut?: boolean;
 }
 
 export default function Checkout() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showSnackbar } = useSnackbar();
+  const { width } = useWindowDimensions();
 
-  // Simulate fetching visits data
-  useEffect(() => {
-    // In a real app, you would fetch this from your backend
-    const fetchVisits = async () => {
-      try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Mock data - replace with actual API call
-        const mockVisits: Visit[] = [
-          {
-            id: '1',
-            visitorName: 'John Doe',
-            visitorNumber: '+1234567890',
-            visiteeName: 'Jane Smith',
-            visiteeNumber: '+1987654321',
-            purpose: 'Business Meeting',
-            checkInTime: '2023-09-27T10:30:00',
-            checkOutTime: null
-          },
-          // Add more mock data as needed
-        ];
-        
-        setVisits(mockVisits);
-      } catch (error) {
-        console.error('Error fetching visits:', error);
-      } finally {
-        setLoading(false);
+  // responsive rules
+  const numColumns = width >= 900 ? 3 : width >= 600 ? 2 : 1;
+
+  // compute card width so cards look even
+  const containerHorizontalPadding = 32; // container padding left+right (16 + 16)
+  const cardHorizontalMargin = 12; // marginLeft + marginRight for each card (6 + 6)
+  const effectiveWidth = Math.max(width - containerHorizontalPadding, 0);
+  const cardWidth =
+    numColumns > 1
+      ? Math.floor((effectiveWidth - numColumns * cardHorizontalMargin) / numColumns)
+      : Math.floor(effectiveWidth - 8); // single column with some breathing room
+
+  const fetchVisits = async () => {
+    try {
+      setLoading(true);
+      const response = await visitorApi.getAllVisitNotCheckedOut();
+      const responseData = response?.data || [];
+
+      if (!Array.isArray(responseData)) {
+        console.error('Expected array but got', responseData);
+        showSnackbar('Error: Invalid data format from server', 'error');
+        setVisits([]);
+        return;
       }
-    };
 
+      const activeVisits: Visit[] = responseData
+        .filter((v: any) => v.visit_status === 'opened')
+        .map((v: any) => ({
+          id: v.id.toString(),
+          visitorName: v.visitor_name || 'Unknown Visitor',
+          visitorNumber: v.visitor_msisdn || 'N/A',
+          visiteeName: v.staff_name || 'Staff Member',
+          visiteeNumber: v.staff_msisdn || 'N/A',
+          purpose: v.visitor_reason || 'Visit',
+          checkInTime: v.check_in_time,
+          company: v.visitor_company || '',
+          department: v.staff_department || '',
+        }));
+
+      setVisits(activeVisits);
+    } catch (error) {
+      console.error('Error fetching visits:', error);
+      showSnackbar('Error loading visits. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchVisits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCheckout = async (visitId: string) => {
+  const handleCheckoutPress = async (visitId: string) => {
     try {
-      // In a real app, you would call an API to update the checkout time
-      setVisits(prevVisits => 
-        prevVisits.map(visit => 
-          visit.id === visitId 
-            ? { ...visit, checkOutTime: new Date().toISOString() } 
-            : visit
-        )
-      );
-      
-      // Show success message or update UI as needed
-      alert('Checkout successful!');
+      setVisits(prev => prev.map(v => (v.id === visitId ? { ...v, isCheckingOut: true } : v)));
+      await visitorApi.checkOutVisitor(visitId);
+      showSnackbar('Visitor checked out successfully', 'success');
+      // refresh
+      fetchVisits();
     } catch (error) {
-      console.error('Error during checkout:', error);
-      alert('Failed to process checkout. Please try again.');
+      console.error('Checkout error:', error);
+      showSnackbar('Failed to check out visitor. Please try again.', 'error');
+      // reset button state
+      setVisits(prev => prev.map(v => (v.id === visitId ? { ...v, isCheckingOut: false } : v)));
     }
   };
 
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text>Loading visits...</Text>
+        <ActivityIndicator size="small" />
+        <Text style={{ marginTop: 8 }}>Loading visits...</Text>
       </View>
     );
   }
 
   if (visits.length === 0) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text>No active visits found</Text>
+      <View style={[styles.container, styles.center, { padding: 20 }]}>
+        <MaterialIcons name="event-busy" size={48} color="#999" style={{ marginBottom: 16 }} />
+        <Text style={{ fontSize: 16, color: 'red', textAlign: 'center' }}>No active visits found</Text>
+        <Text style={{ marginTop: 8, color: '#999', textAlign: 'center' }}>
+          All visitors have been checked out or no visits are currently open.
+        </Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <Text style={styles.title}>Active Visits</Text>
-      
-      {visits.map((visit) => (
-        <View key={visit.id} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.visitorName}>{visit.visitorName}</Text>
-            {!visit.checkOutTime && (
-              <TouchableOpacity 
-                style={styles.checkoutButton}
-                onPress={() => handleCheckout(visit.id)}
-              >
-                <MaterialIcons name="exit-to-app" size={20} color="#fff" />
-                <Text style={styles.checkoutButtonText}>Check Out</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          
-          <View style={styles.detailRow}>
-            <MaterialIcons name="phone" size={16} color="#666" />
-            <Text style={styles.detailText}>{visit.visitorNumber}</Text>
-          </View>
-          
-          <View style={styles.divider} />
-          
-          <Text style={styles.sectionTitle}>Visiting:</Text>
-          <View style={styles.detailRow}>
-            <MaterialIcons name="person" size={16} color="#666" />
-            <Text style={styles.detailText}>{visit.visiteeName}</Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <MaterialIcons name="phone" size={16} color="#666" />
-            <Text style={styles.detailText}>{visit.visiteeNumber}</Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <MaterialIcons name="event-note" size={16} color="#666" />
-            <Text style={styles.detailText}>{visit.purpose}</Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <MaterialIcons name="access-time" size={16} color="#666" />
-            <Text style={styles.detailText}>
-              {new Date(visit.checkInTime).toLocaleTimeString()}
-            </Text>
-          </View>
-          
-          {visit.checkOutTime && (
-            <View style={[styles.detailRow, { marginTop: 8 }]}>
-              <MaterialIcons name="exit-to-app" size={16} color="#4CAF50" />
-              <Text style={[styles.detailText, { color: '#4CAF50' }]}>
-                Checked out at {new Date(visit.checkOutTime).toLocaleTimeString()}
+
+      {/* IMPORTANT: key forces FlatList remount when column count changes */}
+      <FlatList
+        key={`cols-${numColumns}`}
+        data={visits}
+        keyExtractor={item => item.id}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        renderItem={({ item: visit }) => (
+          <View style={[styles.card, { width: cardWidth }]}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.visitorName}>{visit.visitorName}</Text>
+            </View>
+
+            <View style={styles.detailRow}>
+              <MaterialIcons name="phone" size={16} color="red" />
+              <Text style={styles.detailText}>{visit.visitorNumber}</Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <Text style={styles.sectionTitle}>Visiting:</Text>
+            <View style={styles.detailRow}>
+              <MaterialIcons name="person" size={16} color="red" />
+              <Text style={styles.detailText}>{visit.visiteeName}</Text>
+            </View>
+
+            <View style={styles.detailRow}>
+              <MaterialIcons name="phone" size={16} color="red" />
+              <Text style={styles.detailText}>{visit.visiteeNumber}</Text>
+            </View>
+
+            {visit.purpose ? (
+              <View style={styles.detailRow}>
+                <MaterialIcons name="event-note" size={16} color="red" />
+                <Text style={styles.detailText}>{visit.purpose}</Text>
+              </View>
+            ) : null}
+
+            {visit.company ? (
+              <View style={styles.detailRow}>
+                <MaterialIcons name="business" size={16} color="red" />
+                <Text style={styles.detailText}>{visit.company}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.detailRow}>
+              <MaterialIcons name="access-time" size={16} color="red" />
+              <Text style={styles.detailText}>
+                Checked in: {new Date(visit.checkInTime).toLocaleString()}
               </Text>
             </View>
-          )}
-        </View>
-      ))}
-    </ScrollView>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => handleCheckoutPress(visit.id)}
+              disabled={visit.isCheckingOut}
+            >
+              {visit.isCheckingOut ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <MaterialIcons name="exit-to-app" size={18} color="#fff" style={styles.buttonIcon} />
+                  <Text style={styles.buttonText}>Check Out</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      />
+    </View>
   );
 }
 
@@ -162,43 +211,33 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 12,
     color: '#333',
+  },
+  row: {
+    justifyContent: 'flex-start',
+    flexWrap: 'nowrap',
   },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginHorizontal: 6,
+    marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   visitorName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
-  },
-  checkoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#007AFF',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-  },
-  checkoutButtonText: {
-    color: '#fff',
-    marginLeft: 4,
-    fontWeight: '500',
+    marginBottom: 2,
   },
   detailRow: {
     flexDirection: 'row',
@@ -208,16 +247,35 @@ const styles = StyleSheet.create({
   detailText: {
     marginLeft: 8,
     color: '#555',
-    fontSize: 14,
+    fontSize: 13,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'blue',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    elevation: 2,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  buttonIcon: {
+    marginRight: 4,
   },
   divider: {
     height: 1,
     backgroundColor: '#eee',
-    marginVertical: 12,
+    marginVertical: 8,
   },
   sectionTitle: {
     fontWeight: '600',
     color: '#444',
-    marginBottom: 8,
+    marginBottom: 6,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { visitorApi } from '../../src/services/api';
 import {
   Text,
@@ -11,7 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+// import { Picker } from '@react-native-picker/picker';
+import RNPickerSelect from 'react-native-picker-select';
+import { useSnackbar } from '../../src/contexts/SnackbarContext';
 
 // Constants
 const DEPARTMENTS = [
@@ -56,6 +58,7 @@ const VisitorRegistrationForm: React.FC = () => {
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showSnackbar } = useSnackbar();
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -75,13 +78,16 @@ const VisitorRegistrationForm: React.FC = () => {
     }
 
     if (!formData.staffPhoneNumber.trim()) {
-      newErrors.staffPhoneNumber = 'Staff phone number is required';
     } else if (!/^\+?[0-9\s-]{10,}$/i.test(formData.staffPhoneNumber)) {
       newErrors.staffPhoneNumber = 'Please enter a valid phone number';
     }
 
     if (!formData.staffDepartment) {
       newErrors.staffDepartment = 'Please select a department';
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      showSnackbar('Please fill in all required fields', 'error');
     }
     
     setErrors(newErrors);
@@ -139,7 +145,7 @@ const VisitorRegistrationForm: React.FC = () => {
       setSelectedValue('');
       
       // Show success message with visit details
-      alert(`Visitor checked in successfully!\nReference: ${response.data.referenceNumber}`);
+      showSnackbar(`Visitor checked in successfully! Reference: ${response.data.referenceNumber}`, 'success');
     } catch (error: any) {
       console.error('Submission error:', error);
       let errorMessage = 'Failed to submit form. Please try again.';
@@ -148,6 +154,8 @@ const VisitorRegistrationForm: React.FC = () => {
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
+      
+      showSnackbar(errorMessage, 'error');
       
       alert(errorMessage);
     } finally {
@@ -164,8 +172,10 @@ const VisitorRegistrationForm: React.FC = () => {
       <ScrollView 
         contentContainerStyle={styles.scrollView}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.form}>
+          <View style={{ marginBottom: 8 }}>
           <Text style={styles.title}>Visitor Registration</Text>
           <Text style={styles.subtitle}>Please complete the form below</Text>
 
@@ -222,9 +232,13 @@ const VisitorRegistrationForm: React.FC = () => {
             accessibilityLabel="Company"
           />  
 
+          <View style={styles.sectionTitle}>
+            <Text style={styles.sectionTitle}>Host Information</Text>
+          </View>
+          
           {/* Visitee/Staff Name */}
           <Text style={styles.label}>
-            Visitee/Staff Name <Text style={styles.required}>*</Text>
+            Host Name <Text style={styles.required}>*</Text>
           </Text>
           <TextInput 
             style={[
@@ -240,7 +254,7 @@ const VisitorRegistrationForm: React.FC = () => {
 
           {/* Visitee/Staff Phone Number */}
           <Text style={styles.label}>
-            Visitee/Staff Phone Number <Text style={styles.required}>*</Text>
+            Host Phone Number <Text style={styles.required}>*</Text>
           </Text>
           <TextInput 
             style={[
@@ -257,36 +271,31 @@ const VisitorRegistrationForm: React.FC = () => {
 
           {/* Department Picker */}
           <Text style={styles.label}>
-            Department <Text style={styles.required}>*</Text>
+            Host Department <Text style={styles.required}>*</Text>
           </Text>
           <View style={[
             styles.pickerContainer,
             errors.staffDepartment ? styles.errorInput : null
           ]}>
-            <Picker
-              selectedValue={selectedValue}
-              onValueChange={(itemValue: string | null) => {
-                if (itemValue !== null) {
-                  setSelectedValue(itemValue);
-                  handleInputChange('staffDepartment', itemValue);
-                }
-              }}
-              style={styles.picker}
-              dropdownIconColor="#666"
-              mode="dropdown"
-            >
-              <Picker.Item label="Select a department..." value="" />
-              {DEPARTMENTS.map((dept) => (
-                <Picker.Item 
-                  key={dept.value} 
-                  label={dept.label} 
-                  value={dept.value} 
-                />
-              ))}
-            </Picker>
+            <RNPickerSelect
+  onValueChange={(value) => handleInputChange('staffDepartment', value)}
+  items={DEPARTMENTS.map(dept => ({
+    label: dept.label,
+    value: dept.value,
+  }))}
+  placeholder={{ label: "Select host department...", value: "" }}
+  style={{
+    inputIOS: styles.input,
+    inputAndroid: styles.input,
+    placeholder: { color: '#a0aec0' },
+  }}
+  value={formData.staffDepartment}
+/>
           </View>
           {errors.staffDepartment && <Text style={styles.errorText}>{errors.staffDepartment}</Text>}
 
+          </View>
+          
           {/* Submit Button */}
           <TouchableOpacity
             style={[
@@ -296,15 +305,22 @@ const VisitorRegistrationForm: React.FC = () => {
             onPress={handleSubmit}
             disabled={isSubmitting}
             accessibilityLabel="Submit form"
+            activeOpacity={0.9}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.buttonText}>Submit</Text>
+              <Text style={styles.buttonText}>Check In Visitor</Text>
             )}
           </TouchableOpacity>
         </View>
       </ScrollView>
+      {isSubmitting && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4f46e5" />
+          <Text style={styles.loadingText}>Processing your request...</Text>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 };
@@ -313,76 +329,97 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+    padding: 16,
+    justifyContent: 'center',
   },
   scrollView: {
     flexGrow: 1,
-    padding: 20,
   },
   form: {
-    paddingBottom: 40,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 24,
+    marginVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
+    fontSize: 26,
+    fontWeight: '700',
     color: '#1a1a1a',
     marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#666',
-    marginBottom: 24,
+    marginBottom: 32,
     textAlign: 'center',
+    lineHeight: 22,
+  },
+  formSection: {
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 20,
+    marginTop: 16,
   },
   label: {
-    fontSize: 15,
+    fontSize: 14,
     marginBottom: 8,
-    color: '#333',
+    color: '#4a5568',
     fontWeight: '500',
   },
   required: {
-    color: '#dc3545',
+    color: '#e53e3e',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ced4da',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    fontSize: 16,
+    padding: 14,
+    marginBottom: 4,
+    fontSize: 15,
     backgroundColor: '#fff',
-    color: '#333',
+    color: '#1a202c',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#4f46e5',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 20,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#ced4da',
-    borderRadius: 8,
-    marginBottom: 8,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
+    marginTop: 24,
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   picker: {
     width: '100%',
-    height: 50,
+    height: 52,
+    color: '#1a202c',
   },
   errorInput: {
-    borderColor: '#dc3545',
-    backgroundColor: '#fff8f8',
+    borderColor: '#e53e3e',
+    backgroundColor: '#fff5f5',
   },
   errorText: {
     color: '#dc3545',
@@ -390,6 +427,38 @@ const styles = StyleSheet.create({
     marginTop: -6,
     marginBottom: 12,
     marginLeft: 4,
+  },
+  buttonDisabled: {
+    backgroundColor: '#9ca3af',
+    opacity: 0.7,
+    shadowOpacity: 0.1,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  pickerContainer: {
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    marginBottom: 16,
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  loadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#4f46e5',
+    fontWeight: '500',
   },
 });
 
