@@ -7,8 +7,29 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerTitleAlign: "center",
-        tabBarActiveTintColor: "#007AFF",
-        tabBarInactiveTintColor: "#8E8E93",
+        // Tab bar
+        tabBarStyle: {
+          backgroundColor: "#030624",
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.1)",
+          height: 60,
+          paddingBottom: 8,
+        },
+        tabBarActiveTintColor: "#da261c",
+        tabBarInactiveTintColor: "rgba(255,255,255,0.35)",
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "600",
+        },
+        // Header
+        headerStyle: {
+          backgroundColor: "#030624",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.1)",
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        headerTintColor: "#fff",
       }}
     >
       <Tabs.Screen
@@ -18,12 +39,12 @@ export default function TabsLayout() {
           headerTitle: () => (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Image
-                source={require("../../assets/images/icon.png")}
-                style={{ width: 30, height: 30, marginRight: 8 }}
+                source={require("../../assets/images/icos.webp")}
+                style={{ width: 30, height: 30, marginRight: 8, borderRadius: 6 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 18, fontWeight: "bold" }}>
-                Visitor's Check In
+              <Text style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}>
+                AT Visitors
               </Text>
             </View>
           ),
@@ -39,12 +60,12 @@ export default function TabsLayout() {
           headerTitle: () => (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Image
-                source={require("../../assets/images/icon.png")}
-                style={{ width: 30, height: 30, marginRight: 8 }}
+                source={require("../../assets/images/icos.webp")}
+                style={{ width: 30, height: 30, marginRight: 8, borderRadius: 6 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 18, fontWeight: "bold" }}>
-                Visitor's Check Out
+              <Text style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}>
+                AT Visitors
               </Text>
             </View>
           ),
